@@ -14,7 +14,7 @@
                 </h4>
             </div>
             <div class="card-body">
-                <form method="POST">
+                <form method="POST" enctype="multipart/form-data">
                     {% if type == 'calendar' %}
                     <div class="mb-3">
                         <label for="titulo" class="form-label">Título</label>
@@ -62,13 +62,14 @@
                         <label for="organizador" class="form-label">Organizador</label>
                         <input type="text" class="form-control" id="organizador" name="organizador" required>
                     </div>
-
                     <h5 class="mt-4 mb-3">Contenido Adjunto</h5>
                     <div class="mb-3">
-                        <label for="imagenes" class="form-label">URLs de Imágenes (separadas por comas)</label>
-                        <input type="text" class="form-control" id="imagenes" name="imagenes"
-                            placeholder="https://ejemplo.com/img1.jpg, https://ejemplo.com/img2.jpg">
+                        <label for="imagenes" class="form-label">Imágenes del Evento (máximo 3)</label>
+                        <input type="file" class="form-control" id="imagenes" name="imagenes" 
+                               accept="image/*" multiple>
+                        <div class="form-text">Selecciona hasta 3 imágenes para el evento (formatos: JPG, PNG, GIF)</div>
                     </div>
+                    <div class="row">
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="latitud" class="form-label">Latitud</label>
@@ -90,4 +91,14 @@
         </div>
     </div>
 </div>
+
+<script>
+// Limitar a 3 archivos
+document.getElementById('imagenes')?.addEventListener('change', function(e) {
+    if (this.files.length > 3) {
+        alert('Solo puedes seleccionar un máximo de 3 imágenes');
+        this.value = '';
+    }
+});
+</script>
 {% endblock %}

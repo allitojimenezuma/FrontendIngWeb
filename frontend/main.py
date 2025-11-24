@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Form, HTTPException, Depends
+from fastapi import FastAPI, Request, Form, HTTPException, Depends, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -154,32 +154,50 @@ async def create_event(
     duracionMinutos: int = Form(...),
     lugar: str = Form(...),
     organizador: str = Form(...),
-    imagenes: Optional[str] = Form(None),
+    imagenes: List[UploadFile] = File(default=[]),
     latitud: Optional[float] = Form(None),
     longitud: Optional[float] = Form(None)
 ):
+    # Preparar los datos del formulario
     data = {
-        "idCalendario": calendar_id,
-        "titulo": titulo,
-        "horaComienzo": horaComienzo,
-        "duracionMinutos": duracionMinutos,
-        "lugar": lugar,
-        "organizador": organizador,
-        "contenidoAdjunto": {
-            "imagenes": [img.strip() for img in imagenes.split(',')] if imagenes else [],
-            "mapa": {"latitud": latitud, "longitud": longitud} if latitud and longitud else None
-        }
+        'idCalendario': calendar_id,
+        'titulo': titulo,
+        'horaComienzo': horaComienzo,
+        'duracionMinutos': str(duracionMinutos),
+        'lugar': lugar,
+        'organizador': organizador,
     }
     
-    async with httpx.AsyncClient() as client:
+    # Añadir coordenadas si existen
+    if latitud is not None:
+        data['latitud'] = str(latitud)
+    if longitud is not None:
+        data['longitud'] = str(longitud)
+    
+    # Preparar archivos de imagen
+    files = []
+    if imagenes:
+        for imagen in imagenes[:3]:  # Máximo 3 imágenes
+            # Leer el contenido del archivo
+            content = await imagen.read()
+            files.append(('imagenes', (imagen.filename, content, imagen.content_type)))
+            # Resetear el puntero del archivo
+            await imagen.seek(0)
+    
+    async with httpx.AsyncClient(timeout=30.0) as client:
         try:
-            response = await client.post(f"{GATEWAY_URL}/event/events/", json=data)
+            response = await client.post(
+                f"{GATEWAY_URL}/event/events/",
+                data=data,
+                files=files if files else None
+            )
+            
             if response.status_code == 201:
                 return RedirectResponse(url=f"/calendar/{calendar_id}?msg=Evento creado&cat=success", status_code=303)
             else:
                 return RedirectResponse(url=f"/event/new/{calendar_id}?msg=Error: {response.text}&cat=danger", status_code=303)
-        except httpx.RequestError:
-            return RedirectResponse(url=f"/event/new/{calendar_id}?msg=Error de conexión&cat=danger", status_code=303)
+        except httpx.RequestError as e:
+            return RedirectResponse(url=f"/event/new/{calendar_id}?msg=Error de conexión: {str(e)}&cat=danger", status_code=303)
 
 @app.get("/event/{id}", response_class=HTMLResponse)
 async def event_detail(id: str, request: Request):

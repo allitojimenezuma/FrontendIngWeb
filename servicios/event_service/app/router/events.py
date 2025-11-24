@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Body, Response, status, HTTPException, Query, Depends
+from fastapi import APIRouter, Body, Response, status, HTTPException, Query, Depends, File, UploadFile, Form
 from typing import List, Annotated, Optional
 from uuid import UUID
 from datetime import datetime
+import cloudinary.uploader
 
 from ..service.eventService import EventService 
 from ..dependencies import get_event_service 
@@ -17,7 +18,7 @@ EventServiceDep = Annotated[EventService, Depends(get_event_service)]
 
 # --- Endpoints ---
 
-# 1. POST /events : Crear un nuevo evento
+# 1. POST /events : Crear un nuevo evento con imágenes
 @router.post(
     "/",
     response_model=EventInDB,
@@ -25,36 +26,62 @@ EventServiceDep = Annotated[EventService, Depends(get_event_service)]
     response_description="Añadir nuevo evento",
 )
 async def create_event(
-    event: Annotated[EventCreate, Body(
-        examples=[{
-            "idCalendario": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-            "titulo": "Concierto de Verano",
-            "horaComienzo": "2025-08-15T21:30:00",
-            "duracionMinutos": 150,
-            "lugar": "Parque de la Ciudad",
-            "organizador": "Concejalía de Cultura",
-            "contenidoAdjunto": {
-                "imagenes": [
-                    "https://ejemplo.com/concierto.jpg",
-                    "https://ejemplo.com/cartel.jpg"
-                ],
-                "archivos": [
-                    "https://ejemplo.com/programa.pdf"
-                ],
-                "mapa": {
-                    "latitud": 36.7188,
-                    "longitud": -4.4332
-                }
-            }
-        }]
-    )],
-    event_service: EventServiceDep # 👈 Inyección del Service
+    event_service: EventServiceDep ,
+    idCalendario: str = Form(...),
+    titulo: str = Form(...),
+    horaComienzo: str = Form(...),
+    duracionMinutos: int = Form(...),
+    lugar: str = Form(...),
+    organizador: str = Form(...),
+    latitud: Optional[float] = Form(None),
+    longitud: Optional[float] = Form(None),
+    imagenes: List[UploadFile] = File(default=[]),
 ):
     """
-    Crea un nuevo evento en la base de datos.
+    Crea un nuevo evento con imágenes subidas desde archivos.
     """
-    # Llama al Servicio y le pasa el modelo Pydantic validado.
-    return await event_service.create_event(event) 
+    # Subir imágenes a Cloudinary
+    imagen_urls = []
+    if imagenes:
+        for imagen in imagenes[:3]:  # Máximo 3 imágenes
+            try:
+                result = cloudinary.uploader.upload(
+                    imagen.file,
+                    folder="kalendas/events",
+                    resource_type="image"
+                )
+                imagen_urls.append(result['secure_url'])
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Error al subir imagen: {str(e)}"
+                )
+    
+    # Construir contenido adjunto
+    contenido_adjunto = {
+        "imagenes": imagen_urls,
+        "archivos": []
+    }
+    
+    if latitud is not None and longitud is not None:
+        contenido_adjunto["mapa"] = {
+            "latitud": latitud,
+            "longitud": longitud
+        }
+    
+    # Crear evento
+    event_data = {
+        "idCalendario": idCalendario,
+        "titulo": titulo,
+        "horaComienzo": horaComienzo,
+        "duracionMinutos": duracionMinutos,
+        "lugar": lugar,
+        "organizador": organizador,
+        "contenidoAdjunto": contenido_adjunto
+    }
+    
+    event_create = EventCreate(**event_data)
+    return await event_service.create_event(event_create)
 
 
 # 2. GET /events : Obtener una lista de todos los eventos (con filtros opcionales)
@@ -64,17 +91,9 @@ async def create_event(
     response_description="Listar todos los eventos con filtros opcionales",
 )
 async def list_events(
-    event_service: EventServiceDep, # 👈 Inyección del Service
-    fecha_inicio: Optional[datetime] = Query(
-        None, 
-        description="Fecha de inicio del rango (formato ISO: YYYY-MM-DDTHH:MM:SS)",
-        example="2025-01-01T00:00:00"
-    ),
-    fecha_fin: Optional[datetime] = Query(
-        None, 
-        description="Fecha de fin del rango (formato ISO: YYYY-MM-DDTHH:MM:SS)",
-        example="2025-12-31T23:59:59"
-    ),
+    event_service: EventServiceDep,
+    fecha_inicio: Optional[datetime] = Query(None, description="Fecha de inicio del rango"),
+    fecha_fin: Optional[datetime] = Query(None, description="Fecha de fin del rango"),
     lugar: Optional[str] = Query(None, description="Filtrar por lugar"),
     organizador: Optional[str] = Query(None, description="Filtrar por organizador"),
     titulo: Optional[str] = Query(None, description="Filtrar por título"),
@@ -82,9 +101,8 @@ async def list_events(
     duration_maxima: Optional[int] = Query(None, description="Filtrar por duración maxima en minutos"),
 ):
     """
-    Devuelve una lista de eventos filtrados. La lógica de construcción del filtro se delega al Servicio.
+    Devuelve una lista de eventos filtrados.
     """
-    # Llama al Servicio con los parámetros de la Query.
     return await event_service.list_events(
         fecha_inicio, fecha_fin, lugar, organizador, titulo, duration_minima, duration_maxima
     )
@@ -100,11 +118,9 @@ async def get_event(id: UUID, event_service: EventServiceDep):
     """
     Busca un evento por su ID. Devuelve 404 si no lo encuentra.
     """
-    event = await event_service.get_event_by_id(id) # Llama al Servicio
+    event = await event_service.get_event_by_id(id)
     if event:
         return event
-
-    # El manejo de errores de "No encontrado" (404) permanece en el router.
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Evento con ID {id} no encontrado")
 
 
@@ -115,19 +131,70 @@ async def get_event(id: UUID, event_service: EventServiceDep):
     response_description="Actualizar un evento por su ID",
 )
 async def update_event(
-    id: UUID, 
-    event_update: Annotated[EventCreate, Body(...)],
-    event_service: EventServiceDep
+    event_service: EventServiceDep,
+    id: UUID,
+    titulo: Optional[str] = Form(None),
+    horaComienzo: Optional[str] = Form(None),
+    duracionMinutos: Optional[int] = Form(None),
+    lugar: Optional[str] = Form(None),
+    organizador: Optional[str] = Form(None),
+    latitud: Optional[float] = Form(None),
+    longitud: Optional[float] = Form(None),
+    imagenes: List[UploadFile] = File(default=[]),
 ):
     """
-    Actualiza un evento existente. Devuelve 404 si no lo encuentra.
+    Actualiza un evento existente.
     """
-    updated_event = await event_service.update_event(id, event_update) # Llama al Servicio
-
+    update_data = {}
+    
+    if titulo:
+        update_data["titulo"] = titulo
+    if horaComienzo:
+        update_data["horaComienzo"] = horaComienzo
+    if duracionMinutos:
+        update_data["duracionMinutos"] = duracionMinutos
+    if lugar:
+        update_data["lugar"] = lugar
+    if organizador:
+        update_data["organizador"] = organizador
+    
+    # Subir nuevas imágenes si se proporcionan
+    if imagenes:
+        imagen_urls = []
+        for imagen in imagenes[:3]:
+            try:
+                result = cloudinary.uploader.upload(
+                    imagen.file,
+                    folder="kalendas/events",
+                    resource_type="image"
+                )
+                imagen_urls.append(result['secure_url'])
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Error al subir imagen: {str(e)}"
+                )
+        update_data["contenidoAdjunto.imagenes"] = imagen_urls
+    
+    if latitud is not None and longitud is not None:
+        update_data["contenidoAdjunto.mapa"] = {
+            "latitud": latitud,
+            "longitud": longitud
+        }
+    
+    if not update_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se proporcionaron campos para actualizar"
+        )
+    
+    # Necesitas adaptar tu servicio para aceptar dict en lugar de EventCreate
+    updated_event = await event_service.update_event_dict(id, update_data)
+    
     if updated_event:
         return updated_event
     
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"No se pudo actualizar, evento con ID {id} no encontrado")
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Evento con ID {id} no encontrado")
 
 
 # 5. DELETE /events/{id} : Eliminar un evento
@@ -138,18 +205,17 @@ async def update_event(
 )
 async def delete_event(id: UUID, event_service: EventServiceDep):
     """
-    Elimina un evento por su ID. Devuelve 204 si tiene éxito o 404 si no lo encuentra.
+    Elimina un evento por su ID.
     """
-    was_deleted = await event_service.delete_event(id) # Llama al Servicio (solo devuelve True/False)
+    was_deleted = await event_service.delete_event(id)
 
     if not was_deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Evento con ID {id} no encontrado")
 
-    # Si fue eliminado, devuelve la respuesta de éxito sin contenido.
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# 6. GET /events/calendar/{calendar_id} : Obtener eventos de un calendario y sus subcalendarios
+# 6. GET /events/calendar/{calendar_id} : Obtener eventos de un calendario
 @router.get(
     "/calendar/{calendar_id}",
     response_model=List[EventInDB],
@@ -169,4 +235,3 @@ async def get_events_from_calendar(
             detail=f"No se encontraron eventos para el calendario {calendar_id}",
         )
     return events
-
