@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Búsqueda - Kalendas{% endblock %}
+
+{% block content %}
+<div class="row mb-5">
+    <div class="col-md-8 mx-auto">
+        <h2 class="text-center mb-4">Buscar en Kalendas</h2>
+        <form action="{{ url_for('search_page') }}" method="GET" class="d-flex gap-2">
+            <input class="form-control form-control-lg" type="search" name="q"
+                placeholder="Buscar calendarios o eventos..." value="{{ query if query else '' }}" aria-label="Search">
+            <button class="btn btn-primary btn-lg" type="submit">Buscar</button>
+        </form>
+    </div>
+</div>
+
+{% if query %}
+<div class="row">
+    <div class="col-12">
+        <h4 class="mb-4">Resultados para "{{ query }}"</h4>
+
+        {% if not results.calendars and not results.events %}
+        <div class="alert alert-warning">No se encontraron resultados.</div>
+        {% endif %}
+
+        {% if results.calendars %}
+        <h5 class="text-primary border-bottom pb-2 mb-3">Calendarios</h5>
+        <div class="row row-cols-1 row-cols-md-3 g-4 mb-5">
+            {% for calendar in results.calendars %}
+            <div class="col">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ calendar.titulo }}</h5>
+                        <h6 class="card-subtitle mb-2 text-muted">{{ calendar.organizador }}</h6>
+                        <a href="{{ url_for('calendar_detail', id=calendar._id) }}" class="card-link">Ver Calendario</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if results.events %}
+        <h5 class="text-primary border-bottom pb-2 mb-3">Eventos</h5>
+        <div class="list-group mb-5">
+            {% for event in results.events %}
+            <a href="{{ url_for('event_detail', id=event._id) }}" class="list-group-item list-group-item-action">
+                <div class="d-flex w-100 justify-content-between">
+                    <h5 class="mb-1">{{ event.titulo }}</h5>
+                    <small>{{ event.horaComienzo.replace('T', ' ') }}</small>
+                </div>
+                <p class="mb-1">{{ event.lugar }}</p>
+                <small class="text-muted">Organizado por {{ event.organizador }}</small>
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

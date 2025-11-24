@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}{{ event.titulo }} - Kalendas{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+    #map {
+        height: 300px;
+        width: 100%;
+        border-radius: 0.375rem;
+    }
+
+    .event-image {
+        max-height: 400px;
+        object-fit: cover;
+        width: 100%;
+        border-radius: 0.375rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Inicio</a></li>
+                <li class="breadcrumb-item"><a
+                        href="{{ url_for('calendar_detail', id=event.idCalendario) }}">Calendario</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{{ event.titulo }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            {% if event.contenidoAdjunto and event.contenidoAdjunto.imagenes %}
+            <div id="carouselExampleControls" class="carousel slide" data-bs-ride="carousel">
+                <div class="carousel-inner">
+                    {% for img in event.contenidoAdjunto.imagenes %}
+                    <div class="carousel-item {% if loop.first %}active{% endif %}">
+                        <img src="{{ img }}" class="d-block w-100 event-image" alt="Imagen del evento">
+                    </div>
+                    {% endfor %}
+                </div>
+                {% if event.contenidoAdjunto.imagenes|length > 1 %}
+                <button class="carousel-control-prev" type="button" data-bs-target="#carouselExampleControls"
+                    data-bs-slide="prev">
+                    <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                    <span class="visually-hidden">Anterior</span>
+                </button>
+                <button class="carousel-control-next" type="button" data-bs-target="#carouselExampleControls"
+                    data-bs-slide="next">
+                    <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                    <span class="visually-hidden">Siguiente</span>
+                </button>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <div class="card-body">
+                <h2 class="card-title">{{ event.titulo }}</h2>
+                <h6 class="card-subtitle mb-3 text-muted">
+                    <i class="bi bi-person"></i> {{ event.organizador }}
+                </h6>
+
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <p><strong><i class="bi bi-clock"></i> Comienzo:</strong><br>
+                            {{ event.horaComienzo.replace('T', ' ') }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong><i class="bi bi-hourglass-split"></i> Duración:</strong><br>
+                            {{ event.duracionMinutos }} minutos</p>
+                    </div>
+                    <div class="col-12">
+                        <p><strong><i class="bi bi-geo-alt"></i> Lugar:</strong><br>
+                            {{ event.lugar }}</p>
+                    </div>
+                </div>
+
+                {% if event.contenidoAdjunto and event.contenidoAdjunto.mapa %}
+                <div class="mt-4">
+                    <h5>Ubicación</h5>
+                    <div id="map"></div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">Comentarios</h5>
+            </div>
+            <div class="card-body">
+                {% if comments %}
+                {% for comment in comments %}
+                <div class="border-bottom pb-3 mb-3">
+                    <p class="mb-1">{{ comment.contenido }}</p>
+                    <small class="text-muted">
+                        {{ comment.fechaCreacion.replace('T', ' ')[:16] if comment.fechaCreacion else 'Reciente' }}
+                    </small>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="text-muted">No hay comentarios aún. ¡Sé el primero!</p>
+                {% endif %}
+
+                <form action="{{ url_for('add_comment', id=event._id) }}" method="POST" class="mt-4">
+                    <div class="mb-3">
+                        <label for="contenido" class="form-label">Añadir un comentario</label>
+                        <textarea class="form-control" id="contenido" name="contenido" rows="3" required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm">Publicar Comentario</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <!-- Sidebar content if needed -->
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if event.contenidoAdjunto and event.contenidoAdjunto.mapa %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    var map = L.map('map').setView([{{ event.contenidoAdjunto.mapa.latitud }}, { { event.contenidoAdjunto.mapa.longitud } }], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+    L.marker([{{ event.contenidoAdjunto.mapa.latitud }}, {{ event.contenidoAdjunto.mapa.longitud }}]).addTo(map)
+        .bindPopup('{{ event.lugar }}')
+        .openPopup();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}
+{% if type == 'calendar' %}Nuevo Calendario{% else %}Nuevo Evento{% endif %} - Kalendas
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    {% if type == 'calendar' %}Crear Nuevo Calendario{% else %}Crear Nuevo Evento{% endif %}
+                </h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    {% if type == 'calendar' %}
+                    <div class="mb-3">
+                        <label for="titulo" class="form-label">Título</label>
+                        <input type="text" class="form-control" id="titulo" name="titulo" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="organizador" class="form-label">Organizador</label>
+                        <input type="text" class="form-control" id="organizador" name="organizador" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="palabras_clave" class="form-label">Palabras Clave (separadas por comas)</label>
+                        <input type="text" class="form-control" id="palabras_clave" name="palabras_clave"
+                            placeholder="deporte, musica, aire libre">
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="es_publico" name="es_publico" checked>
+                        <label class="form-check-label" for="es_publico">Es Público</label>
+                    </div>
+                    <div class="mb-3">
+                        <label for="idCalendarioPadre" class="form-label">ID Calendario Padre (Opcional)</label>
+                        <input type="text" class="form-control" id="idCalendarioPadre" name="idCalendarioPadre">
+                    </div>
+                    {% else %}
+                    <div class="mb-3">
+                        <label for="titulo" class="form-label">Título del Evento</label>
+                        <input type="text" class="form-control" id="titulo" name="titulo" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="horaComienzo" class="form-label">Fecha y Hora de Comienzo</label>
+                            <input type="datetime-local" class="form-control" id="horaComienzo" name="horaComienzo"
+                                required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="duracionMinutos" class="form-label">Duración (minutos)</label>
+                            <input type="number" class="form-control" id="duracionMinutos" name="duracionMinutos"
+                                required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="lugar" class="form-label">Lugar</label>
+                        <input type="text" class="form-control" id="lugar" name="lugar" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="organizador" class="form-label">Organizador</label>
+                        <input type="text" class="form-control" id="organizador" name="organizador" required>
+                    </div>
+
+                    <h5 class="mt-4 mb-3">Contenido Adjunto</h5>
+                    <div class="mb-3">
+                        <label for="imagenes" class="form-label">URLs de Imágenes (separadas por comas)</label>
+                        <input type="text" class="form-control" id="imagenes" name="imagenes"
+                            placeholder="https://ejemplo.com/img1.jpg, https://ejemplo.com/img2.jpg">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="latitud" class="form-label">Latitud</label>
+                            <input type="number" step="any" class="form-control" id="latitud" name="latitud">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="longitud" class="form-label">Longitud</label>
+                            <input type="number" step="any" class="form-control" id="longitud" name="longitud">
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                        <a href="{{ url_for('index') }}" class="btn btn-secondary me-md-2">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

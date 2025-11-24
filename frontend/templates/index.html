@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Inicio - Kalendas{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1 class="display-5">Calendarios Públicos</h1>
+        <p class="lead">Explora los eventos y actividades disponibles.</p>
+    </div>
+    <div class="col-md-4 text-end align-self-center">
+        <a href="{{ url_for('create_calendar_form') }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Crear Calendario
+        </a>
+    </div>
+</div>
+
+<div class="row row-cols-1 row-cols-md-3 g-4">
+    {% for calendar in calendars %}
+    <div class="col">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">{{ calendar.titulo }}</h5>
+                <h6 class="card-subtitle mb-2 text-muted">
+                    <i class="bi bi-person"></i> {{ calendar.organizador }}
+                </h6>
+                <p class="card-text">
+                    {% if calendar.palabras_clave %}
+                    {% for tag in calendar.palabras_clave %}
+                    <span class="badge bg-secondary">{{ tag }}</span>
+                    {% endfor %}
+                    {% endif %}
+                </p>
+            </div>
+            <div class="card-footer bg-transparent border-top-0">
+                <a href="{{ url_for('calendar_detail', id=calendar._id) }}" class="btn btn-outline-primary w-100">
+                    Ver Detalles
+                </a>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12">
+        <div class="alert alert-info">
+            No hay calendarios públicos disponibles en este momento.
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

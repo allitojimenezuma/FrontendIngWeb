@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}{{ calendar.titulo }} - Kalendas{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Inicio</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{{ calendar.titulo }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <h3 class="card-title">{{ calendar.titulo }}</h3>
+                <h6 class="card-subtitle mb-3 text-muted">Organizado por {{ calendar.organizador }}</h6>
+
+                <div class="mb-3">
+                    {% if calendar.palabras_clave %}
+                    {% for tag in calendar.palabras_clave %}
+                    <span class="badge bg-info text-dark">{{ tag }}</span>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+
+                <p class="card-text">
+                    <strong>ID:</strong> <small class="text-muted">{{ calendar._id }}</small><br>
+                    <strong>Visibilidad:</strong>
+                    {% if calendar.es_publico %}
+                    <span class="badge bg-success">Público</span>
+                    {% else %}
+                    <span class="badge bg-warning text-dark">Privado</span>
+                    {% endif %}
+                </p>
+
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('create_event_form', calendar_id=calendar._id) }}" class="btn btn-primary">
+                        <i class="bi bi-calendar-plus"></i> Añadir Evento
+                    </a>
+                    <form action="{{ url_for('delete_calendar', id=calendar._id) }}" method="POST"
+                        onsubmit="return confirm('¿Estás seguro de eliminar este calendario?');">
+                        <button type="submit" class="btn btn-outline-danger w-100">
+                            <i class="bi bi-trash"></i> Eliminar Calendario
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        {% if subcalendars %}
+        <div class="card mt-4">
+            <div class="card-header">
+                Subcalendarios
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for sub in subcalendars %}
+                <li class="list-group-item">
+                    <a href="{{ url_for('calendar_detail', id=sub._id) }}" class="text-decoration-none">
+                        {{ sub.titulo }}
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-md-8">
+        <h4 class="mb-3">Eventos Próximos</h4>
+        {% if events %}
+        <div class="list-group">
+            {% for event in events %}
+            <a href="{{ url_for('event_detail', id=event._id) }}"
+                class="list-group-item list-group-item-action flex-column align-items-start">
+                <div class="d-flex w-100 justify-content-between">
+                    <h5 class="mb-1">{{ event.titulo }}</h5>
+                    <small class="text-muted">
+                        {{ event.horaComienzo.replace('T', ' ') }}
+                    </small>
+                </div>
+                <p class="mb-1">
+                    <i class="bi bi-geo-alt"></i> {{ event.lugar }}
+                </p>
+                <small class="text-muted">Duración: {{ event.duracionMinutos }} min</small>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-light border text-center py-5">
+            <i class="bi bi-calendar-x display-4 text-muted"></i>
+            <p class="mt-3 text-muted">No hay eventos programados en este calendario.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

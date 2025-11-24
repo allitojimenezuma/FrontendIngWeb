@@ -1,0 +1,14 @@
+# Ignore directories created by tools
+.git
+.gitignore
+.dockerignore
+__pycache__
+*.pyc
+.mypy_cache/
+.pytest_cache/
+.vscode/
+
+# Ignore virtual environments
+venv/
+.venv/
+env/
