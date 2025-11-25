@@ -81,11 +81,6 @@ class EventService:
         update_data = event_update.model_dump(by_alias=True, exclude_unset=True)
         return await self.crud.update(event_id, update_data)
 
-    
-    async def update_event_dict(self, event_id: UUID, update_data: dict) -> Optional[EventInDB]:
-        """Actualiza un evento con un diccionario directamente (para formularios con archivos)."""
-        return await self.crud.update(event_id, update_data)
-
 
     async def delete_event(self, event_id: UUID) -> bool:
         """Elimina un evento y devuelve si la operación fue exitosa."""

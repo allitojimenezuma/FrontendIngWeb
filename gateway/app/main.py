@@ -1,7 +1,6 @@
-from fastapi import FastAPI, Request, HTTPException, Response, UploadFile, File, Form
+from fastapi import FastAPI, Request, HTTPException, Response
 import os
 import httpx
-from typing import Optional
 
 app = FastAPI(title="API Gateway")
 
@@ -20,34 +19,20 @@ async def _proxy_request(service: str, path: str, request: Request):
 
     service_base_url = SERVICES[service]
     
-    # Verificar si es multipart/form-data (para archivos)
-    content_type = request.headers.get("content-type", "")
+    body = await request.body()
     
-    async with httpx.AsyncClient(base_url=service_base_url, timeout=30.0) as client:
+    # Inicializa el cliente con el base_url del microservicio de destino
+    async with httpx.AsyncClient(base_url=service_base_url) as client:
         try:
-            if "multipart/form-data" in content_type:
-                # Para formularios con archivos, reenviar el body completo
-                body = await request.body()
-                response = await client.request(
-                    method=request.method,
-                    url=f"/{path}",
-                    headers={k: v for k, v in request.headers.items() if k.lower() != "host"},
-                    params=request.query_params,
-                    content=body,
-                    follow_redirects=True,
-                )
-            else:
-                # Para peticiones normales (JSON, etc.)
-                body = await request.body()
-                response = await client.request(
-                    method=request.method,
-                    url=f"/{path}",
-                    headers={k: v for k, v in request.headers.items() if k.lower() != "host"},
-                    params=request.query_params,
-                    content=body,
-                    follow_redirects=True,
-                )
-            
+            # Ahora la URL de la petición es relativa al base_url
+            response = await client.request(
+                method=request.method,
+                url=f"/{path}",
+                headers=dict(request.headers),
+                params=request.query_params,
+                content=body,
+                follow_redirects=True,
+            )
             return Response(
                 content=response.content,
                 status_code=response.status_code,
