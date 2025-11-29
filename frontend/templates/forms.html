@@ -4,6 +4,42 @@
 {% if type == 'calendar' %}Nuevo Calendario{% else %}Nuevo Evento{% endif %} - Kalendas
 {% endblock %}
 
+{% block extra_css %}
+{% if type != 'calendar' %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+    #map-picker {
+        height: 350px;
+        width: 100%;
+        border-radius: 0.375rem;
+        border: 1px solid #dee2e6;
+        margin-bottom: 1rem;
+        cursor: crosshair;
+    }
+    
+    #search-results {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+    
+    .search-result-item {
+        padding: 8px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid #e9ecef;
+        transition: background-color 0.2s;
+    }
+    
+    .search-result-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .search-result-item:last-child {
+        border-bottom: none;
+    }
+</style>
+{% endif %}
+{% endblock %}
+
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-md-8">
@@ -69,14 +105,31 @@
                         <input type="text" class="form-control" id="imagenes" name="imagenes"
                             placeholder="https://ejemplo.com/img1.jpg, https://ejemplo.com/img2.jpg">
                     </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label"><i class="bi bi-geo-alt-fill"></i> Ubicación en el Mapa</label>
+                        <p class="text-muted small mb-2">Haz clic en el mapa, busca una dirección o introduce coordenadas manualmente</p>
+                        
+                        <!-- Buscador de direcciones -->
+                        <div class="input-group mb-2">
+                            <input type="text" class="form-control" id="address-search" placeholder="Buscar dirección (ej: Plaza Mayor, Madrid)">
+                            <button class="btn btn-outline-secondary" type="button" id="search-btn">
+                                <i class="bi bi-search"></i> Buscar
+                            </button>
+                        </div>
+                        <div id="search-results" class="mb-2"></div>
+                        
+                        <div id="map-picker"></div>
+                    </div>
+                    
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="latitud" class="form-label">Latitud</label>
-                            <input type="number" step="any" class="form-control" id="latitud" name="latitud">
+                            <input type="number" step="any" class="form-control" id="latitud" name="latitud" placeholder="Ej: 36.7213">
                         </div>
                         <div class="col-md-6 mb-3">
                             <label for="longitud" class="form-label">Longitud</label>
-                            <input type="number" step="any" class="form-control" id="longitud" name="longitud">
+                            <input type="number" step="any" class="form-control" id="longitud" name="longitud" placeholder="Ej: -4.4214">
                         </div>
                     </div>
                     {% endif %}
@@ -90,4 +143,127 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{% if type != 'calendar' %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Coordenadas por defecto (Málaga, España)
+        var defaultLat = 36.7213;
+        var defaultLng = -4.4214;
+        
+        // Inicializar el mapa
+        var map = L.map('map-picker').setView([defaultLat, defaultLng], 13);
+        
+        // Añadir capa de OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        var marker = null;
+
+        // Función para actualizar los campos de coordenadas
+        function updateCoordinates(lat, lng) {
+            document.getElementById('latitud').value = lat.toFixed(6);
+            document.getElementById('longitud').value = lng.toFixed(6);
+        }
+        
+        // Función para añadir/mover marcador
+        function placeMarker(lat, lng) {
+            if (marker) {
+                marker.setLatLng([lat, lng]);
+            } else {
+                marker = L.marker([lat, lng], {
+                    draggable: true
+                }).addTo(map);
+                
+                // Permitir arrastrar el marcador
+                marker.on('dragend', function(e) {
+                    var newPos = marker.getLatLng();
+                    updateCoordinates(newPos.lat, newPos.lng);
+                });
+            }
+            map.setView([lat, lng], 15);
+            updateCoordinates(lat, lng);
+        }
+
+        // Evento de clic en el mapa
+        map.on('click', function(e) {
+            placeMarker(e.latlng.lat, e.latlng.lng);
+        });
+        
+        // Sincronizar campos de coordenadas con el mapa (cuando el usuario escribe)
+        document.getElementById('latitud').addEventListener('change', function() {
+            var lat = parseFloat(this.value);
+            var lng = parseFloat(document.getElementById('longitud').value);
+            if (!isNaN(lat) && !isNaN(lng)) {
+                placeMarker(lat, lng);
+            }
+        });
+        
+        document.getElementById('longitud').addEventListener('change', function() {
+            var lat = parseFloat(document.getElementById('latitud').value);
+            var lng = parseFloat(this.value);
+            if (!isNaN(lat) && !isNaN(lng)) {
+                placeMarker(lat, lng);
+            }
+        });
+        
+        // Buscador de direcciones usando Nominatim (OpenStreetMap)
+        document.getElementById('search-btn').addEventListener('click', function() {
+            var address = document.getElementById('address-search').value.trim();
+            if (!address) return;
+            
+            var resultsDiv = document.getElementById('search-results');
+            resultsDiv.innerHTML = '<div class="text-muted small p-2">Buscando...</div>';
+            
+            // API de Nominatim para geocodificación
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=5`)
+                .then(response => response.json())
+                .then(data => {
+                    resultsDiv.innerHTML = '';
+                    
+                    if (data.length === 0) {
+                        resultsDiv.innerHTML = '<div class="alert alert-warning small mb-0">No se encontraron resultados</div>';
+                        return;
+                    }
+                    
+                    data.forEach(function(result) {
+                        var div = document.createElement('div');
+                        div.className = 'search-result-item';
+                        div.innerHTML = `<strong>${result.display_name}</strong>`;
+                        div.addEventListener('click', function() {
+                            placeMarker(parseFloat(result.lat), parseFloat(result.lon));
+                            resultsDiv.innerHTML = '';
+                            document.getElementById('address-search').value = '';
+                        });
+                        resultsDiv.appendChild(div);
+                    });
+                })
+                .catch(error => {
+                    resultsDiv.innerHTML = '<div class="alert alert-danger small mb-0">Error al buscar la dirección</div>';
+                    console.error('Error:', error);
+                });
+        });
+        
+        // Permitir buscar con Enter
+        document.getElementById('address-search').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('search-btn').click();
+            }
+        });
+        
+        // Si ya hay coordenadas (edición), mostrarlas
+        var existingLat = document.getElementById('latitud').value;
+        var existingLng = document.getElementById('longitud').value;
+        if (existingLat && existingLng) {
+            placeMarker(parseFloat(existingLat), parseFloat(existingLng));
+        }
+    });
+</script>
+{% endif %}
 {% endblock %}
