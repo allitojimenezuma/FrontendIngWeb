@@ -20,16 +20,7 @@ templates = Jinja2Templates(directory="templates")
 # Gateway URL
 GATEWAY_URL = os.getenv('GATEWAY_URL', 'http://gateway:8000')
 
-# --- Helper for Flash Messages (Simple Cookie-based) ---
-# In a real app, use a session middleware like starlette-session
-def flash(request: Request, message: str, category: str = "info"):
-    # This is a simplified way to pass messages to the next request via cookies or query params
-    # For this practice, we will pass them in the redirect URL or context if possible.
-    # Since standard Flash doesn't exist in FastAPI, we'll use a simple workaround:
-    # We will append ?msg=...&cat=... to redirects and read them in templates.
-    pass 
-
-# Helper to get messages from query params
+# --- Helper for Flash Messages ---
 def get_messages(request: Request):
     msg = request.query_params.get("msg")
     cat = request.query_params.get("cat")
@@ -37,7 +28,6 @@ def get_messages(request: Request):
         return [(cat or "info", msg)]
     return []
 
-# Inject messages into templates
 @app.middleware("http")
 async def add_messages_to_context(request: Request, call_next):
     response = await call_next(request)
@@ -53,9 +43,6 @@ async def index(request: Request):
             calendars = response.json() if response.status_code == 200 else []
         except httpx.RequestError:
             calendars = []
-            # In a real scenario, we'd handle the error better
-    
-    print(f"DEBUG: Calendars received: {calendars}")
     
     return templates.TemplateResponse("index.html", {
         "request": request, 
@@ -94,7 +81,7 @@ async def create_calendar(
                 return RedirectResponse(url="/?msg=Calendario creado&cat=success", status_code=303)
             else:
                 return RedirectResponse(url=f"/calendar/new?msg=Error: {response.text}&cat=danger", status_code=303)
-        except httpx.RequestError as e:
+        except httpx.RequestError:
             return RedirectResponse(url=f"/calendar/new?msg=Error de conexión&cat=danger", status_code=303)
 
 @app.get("/calendar/{id}", response_class=HTMLResponse)
@@ -204,16 +191,32 @@ async def event_detail(id: str, request: Request):
         except httpx.RequestError:
             return RedirectResponse(url="/?msg=Error de conexión&cat=danger", status_code=303)
 
+# --- FUNCIÓN CLAVE ACTUALIZADA ---
 @app.post("/event/{id}/comment")
-async def add_comment(id: str, contenido: str = Form(...)):
+async def add_comment(
+    id: str, 
+    contenido: str = Form(...),
+    notif_pref: str = Form("email") # <--- Capturamos el campo oculto
+):
     data = {
         "contenido": contenido,
         "idEvento": id,
         "idCalendario": None
     }
+    
+    # Lógica: Si prefieren "app", le decimos al backend que NO mande email (False)
+    # Si prefieren "email" (default), enviamos True
+    enviar_email = (notif_pref != "app")
+
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.post(f"{GATEWAY_URL}/comment/comments/", json=data)
+            # Enviamos el parametro 'enviar_email' al backend
+            response = await client.post(
+                f"{GATEWAY_URL}/comment/comments/", 
+                json=data,
+                params={"enviar_email": enviar_email} 
+            )
+            
             if response.status_code == 201:
                 return RedirectResponse(url=f"/event/{id}?msg=Comentario añadido&cat=success", status_code=303)
             else:
@@ -238,7 +241,7 @@ async def search_page(request: Request, q: Optional[str] = None):
                 if event_res.status_code == 200:
                     results['events'] = event_res.json()
             except httpx.RequestError:
-                pass # Handle error gracefully in UI
+                pass 
             
     return templates.TemplateResponse("search.html", {
         "request": request,
@@ -246,3 +249,12 @@ async def search_page(request: Request, q: Optional[str] = None):
         "query": q,
         "messages": get_messages(request)
     })
+
+# --- RUTAS DE SIMULACIÓN (Mock) ---
+@app.get("/settings-mock", response_class=HTMLResponse)
+async def settings_page(request: Request):
+    return templates.TemplateResponse("settings.html", {"request": request})
+
+@app.get("/notifications-mock", response_class=HTMLResponse)
+async def notifications_page(request: Request):
+    return templates.TemplateResponse("notifications.html", {"request": request})

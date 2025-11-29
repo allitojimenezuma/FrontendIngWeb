@@ -109,19 +109,35 @@
                 <p class="text-muted">No hay comentarios aún. ¡Sé el primero!</p>
                 {% endif %}
 
-                <form action="{{ url_for('add_comment', id=event._id) }}" method="POST" class="mt-4">
+                <!-- FORMULARIO CON FEEDBACK VISUAL -->
+                <form id="comment-form" action="{{ url_for('add_comment', id=event._id) }}" method="POST" class="mt-4">
+                    
+                    <!-- CAMPO OCULTO NUEVO: Aquí guardaremos la preferencia (email o app) -->
+                    <input type="hidden" name="notif_pref" id="hidden-notif-pref" value="email">
+
                     <div class="mb-3">
                         <label for="contenido" class="form-label">Añadir un comentario</label>
-                        <textarea class="form-control" id="contenido" name="contenido" rows="3" required></textarea>
+                        <textarea class="form-control" id="contenido" name="contenido" rows="3" required placeholder="Comparte tu opinión..."></textarea>
+                        <div class="form-text text-muted">
+                            <i class="bi bi-bell"></i> El organizador será notificado automáticamente.
+                        </div>
                     </div>
-                    <button type="submit" class="btn btn-primary btn-sm">Publicar Comentario</button>
+                    
+                    <div id="notification-alert" class="alert alert-success d-none align-items-center" role="alert">
+                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                        <div>Procesando...</div>
+                    </div>
+
+                    <button type="submit" id="submit-btn" class="btn btn-primary btn-sm">
+                        Publicar Comentario
+                    </button>
                 </form>
             </div>
         </div>
     </div>
 
     <div class="col-md-4">
-        <!-- Sidebar content if needed -->
+        <!-- Sidebar content -->
     </div>
 </div>
 {% endblock %}
@@ -140,4 +156,37 @@
         .openPopup();
 </script>
 {% endif %}
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const commentForm = document.getElementById('comment-form');
+        const notificationAlert = document.getElementById('notification-alert');
+        const alertText = notificationAlert.querySelector('div:last-child');
+        const submitBtn = document.getElementById('submit-btn');
+        const hiddenInput = document.getElementById('hidden-notif-pref');
+
+        if(commentForm) {
+            commentForm.addEventListener('submit', function(e) {
+                // 1. LEER PREFERENCIA
+                const preferencia = localStorage.getItem('kalendas_notif_pref') || 'email';
+                
+                // 2. IMPORTANTE: Meter la preferencia en el input oculto para enviarla al servidor
+                hiddenInput.value = preferencia;
+
+                // 3. Feedback Visual
+                if (preferencia === 'app') {
+                    alertText.textContent = "Guardando comentario y generando alerta interna...";
+                    localStorage.setItem('kalendas_new_notification', 'true');
+                } else {
+                    alertText.textContent = "Enviando comentario y correo al organizador...";
+                }
+
+                notificationAlert.classList.remove('d-none');
+                notificationAlert.classList.add('d-flex');
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = 'Enviando...';
+            });
+        }
+    });
+</script>
 {% endblock %}

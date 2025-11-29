@@ -50,7 +50,11 @@ Dentro del archivo `.env`, añade la URI de conexión a MongoDB que se comparti�
 ```env
 # Contenido para el archivo .env
 MONGODB_URI="mongodb+srv://<usuario>:<password>@<cluster>..."
+# Envio de emails 
+SENDGRID_API_KEY="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"
+EMAIL_REMITENTE="gbcarlos1863@gmail.com"
 ```
+
 
 ### 6. Poblar la Base de Datos (Paso Inicial)
 
