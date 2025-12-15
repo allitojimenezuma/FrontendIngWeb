@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Iniciar Sesión - Kalendas{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6 col-lg-4">
+        <div class="card shadow">
+            <div class="card-body text-center p-5">
+                <h3 class="mb-4">Bienvenido a Kalendas</h3>
+                <p class="text-muted mb-4">Inicia sesión para gestionar tus eventos</p>
+                
+                <div id="g_id_onload"
+                     data-client_id="853773773260-c4a0jh7ii2bbql2cbb7mseb421vnor94.apps.googleusercontent.com"
+                     data-callback="handleCredentialResponse"
+                     data-auto_prompt="false">
+                </div>
+                <div class="g_id_signin"
+                     data-type="standard"
+                     data-size="large"
+                     data-theme="outline"
+                     data-text="sign_in_with"
+                     data-shape="rectangular"
+                     data-logo_alignment="left"
+                     data-width="100%">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function handleCredentialResponse(response) {
+        // Creamos un formulario invisible para enviar el token al backend
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/auth/google'; // Ruta que crearemos en main.py
+        
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'token';
+        input.value = response.credential;
+        
+        form.appendChild(input);
+        document.body.appendChild(form);
+        form.submit();
+    }
+</script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+{% endblock %}
