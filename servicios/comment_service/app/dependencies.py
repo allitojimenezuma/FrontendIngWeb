@@ -1,13 +1,9 @@
-from .crud.comment_crud import CommentCRUD
-from .service.commentsService import CommentsService
+from app.service.commentsService import CommentsService
+from app.crud.comment_crud import CommentCRUD
 
-# Instanciación estática del CRUD (si no requiere sesión/estado)
+# Instancia única del CRUD (Singleton)
 COMMENT_CRUD_INSTANCE = CommentCRUD()
 
-def get_comment_crud() -> CommentCRUD:
-    """Provee la instancia del CRUD (útil para otros servicios o tests)."""
-    return COMMENT_CRUD_INSTANCE
-
-def get_comment_service() -> CommentsService:
-    """Provee la instancia del CommentsService, inyectándole el CRUD."""
+def get_comments_service() -> CommentsService:
+    """Inyecta el CRUD en el Servicio y devuelve la instancia del Servicio."""
     return CommentsService(crud=COMMENT_CRUD_INSTANCE)

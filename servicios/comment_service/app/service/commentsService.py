@@ -1,116 +1,70 @@
 from typing import List, Optional
 from uuid import UUID, uuid4
 from fastapi import HTTPException, status
+import os
 
+# Importaciones del proyecto
 from ..model.comment_models import CommentCreate, CommentInDB
 from ..crud.comment_crud import CommentCRUD
-
+from ..email_utils import enviar_notificacion_email  # 👈 Usamos tu utilidad existente
 
 class CommentsService:
-    """
-    Lógica de negocio para Comentarios.
-    Se comunica con la capa CRUD (Repository) y aplica validaciones de negocio.
-    """
-
     def __init__(self, crud: CommentCRUD):
         self.crud = crud
 
-
-    async def create_comment(self, comment_data: CommentCreate) -> CommentInDB:
-        """
-        Crea un nuevo comentario.
-        Valida que se proporcione al menos idCalendario o idEvento.
-        """
-        # Validación de negocio: debe haber al menos un ID
+    async def create_comment(self, comment_data: CommentCreate, enviar_email: bool = True) -> CommentInDB:
+        # 1. Validación de Negocio
         if not comment_data.id_calendario and not comment_data.id_evento:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Debe proporcionar idCalendario o idEvento"
             )
 
-        # Convertir el modelo Pydantic a diccionario y añadir el _id
+        # 2. Preparar datos
         comment_dict = comment_data.model_dump(by_alias=True)
         comment_dict["_id"] = uuid4()
 
-        # Llamar al CRUD para insertar
-        return await self.crud.create(comment_dict)
+        # 3. Persistencia (CRUD)
+        new_comment = await self.crud.create(comment_dict)
 
+        # 4. Lógica de Notificación (Side Effect)
+        if enviar_email:
+            # En un entorno real, buscaríamos el email del organizador llamando al EventService.
+            # Para la demo/entrega, usamos el email definido en .env o uno de prueba.
+            destinatario = os.getenv("EMAIL_REMITENTE") # O el email hardcodeado para pruebas
+            
+            ref_id = str(comment_data.id_evento) if comment_data.id_evento else str(comment_data.id_calendario)
+            
+            # Llamada asíncrona "fire and forget" o await según necesidad.
+            # Aquí lo hacemos síncrono por simplicidad del script de sendgrid.
+            enviar_notificacion_email(
+                destinatario=destinatario,
+                nombre_evento=f"ID: {ref_id}",
+                contenido_comentario=comment_data.contenido
+            )
+        
+        return new_comment
 
     async def get_comment(self, comment_id: UUID) -> CommentInDB:
-        """
-        Obtiene un comentario por su ID.
-        Lanza 404 si no existe.
-        """
         comment = await self.crud.get_by_id(comment_id)
         if not comment:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Comentario con ID {comment_id} no encontrado"
-            )
+            raise HTTPException(status_code=404, detail=f"Comentario {comment_id} no encontrado")
         return comment
 
-
-    async def list_comments(
-        self, 
-        id_calendario: Optional[UUID] = None,
-        id_evento: Optional[UUID] = None
-    ) -> List[CommentInDB]:
-        """
-        Lista comentarios con filtros opcionales.
-        Si no se proporciona filtro, devuelve todos los comentarios.
-        """
+    async def list_comments(self, id_calendario: Optional[UUID], id_evento: Optional[UUID]) -> List[CommentInDB]:
         filtro = {}
-        
-        if id_calendario:
-            filtro["idCalendario"] = id_calendario
-        
-        if id_evento:
-            filtro["idEvento"] = id_evento
-        
+        if id_calendario: filtro["idCalendario"] = id_calendario
+        if id_evento: filtro["idEvento"] = id_evento
         return await self.crud.list_by_filter(filtro)
 
-
-    async def update_comment(
-        self, 
-        comment_id: UUID, 
-        comment_data: CommentCreate
-    ) -> CommentInDB:
-        """
-        Actualiza un comentario existente.
-        Lanza 404 si no existe.
-        """
+    async def update_comment(self, comment_id: UUID, comment_data: CommentCreate) -> CommentInDB:
         update_dict = comment_data.model_dump(by_alias=True, exclude_unset=True)
-        
-        updated_comment = await self.crud.update(comment_id, update_dict)
-        
-        if not updated_comment:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No se pudo actualizar, comentario con ID {comment_id} no encontrado"
-            )
-        
-        return updated_comment
-
+        updated = await self.crud.update(comment_id, update_dict)
+        if not updated:
+            raise HTTPException(status_code=404, detail=f"Comentario {comment_id} no encontrado")
+        return updated
 
     async def delete_comment(self, comment_id: UUID) -> None:
-        """
-        Elimina un comentario.
-        Lanza 404 si no existe.
-        """
-        deleted_count = await self.crud.delete(comment_id)
-        
-        if deleted_count == 0:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Comentario con ID {comment_id} no encontrado"
-            )
-
-
-    async def get_comments_by_calendar(self, calendar_id: UUID) -> List[CommentInDB]:
-        """Obtiene todos los comentarios de un calendario específico."""
-        return await self.crud.get_by_calendar(calendar_id)
-
-
-    async def get_comments_by_event(self, event_id: UUID) -> List[CommentInDB]:
-        """Obtiene todos los comentarios de un evento específico."""
-        return await self.crud.get_by_event(event_id)
+        deleted = await self.crud.delete(comment_id)
+        if deleted == 0:
+            raise HTTPException(status_code=404, detail=f"Comentario {comment_id} no encontrado")
