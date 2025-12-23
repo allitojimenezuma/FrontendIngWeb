@@ -1,5 +1,5 @@
 services:
-  # 🧭 GATEWAY (punto de entrada)
+  #  GATEWAY (punto de entrada)
   gateway:
     build: ./gateway
     container_name: gateway
@@ -13,7 +13,7 @@ services:
       - .env
     restart: always
 
-  # 📅 CALENDAR SERVICE
+  #  CALENDAR SERVICE
   calendar_service:
     build: ./servicios/calendar_service
     container_name: calendar_service
@@ -23,7 +23,7 @@ services:
       - .env
     restart: always
 
-  # 🗓️ EVENT SERVICE
+  #  EVENT SERVICE
   event_service:
     build: ./servicios/event_service
     container_name: event_service
@@ -33,7 +33,7 @@ services:
       - .env
     restart: always
 
-  # 💬 COMMENT SERVICE
+  #  COMMENT SERVICE
   comment_service:
     build: ./servicios/comment_service
     container_name: comment_service
@@ -42,8 +42,19 @@ services:
     env_file:
       - .env
     restart: always
+  
+  #  EXTERNAL CALENDAR SERVICE
+  external_service:
+    build: ./servicios/external_calendar_service
+    container_name: external_service
+    ports:
+      - "8004:8000"
+    environment:
+      - CALENDAR_SERVICE_URL=http://calendar_service:8000
+      - EVENT_SERVICE_URL=http://event_service:8000
+    restart: always
 
-  # 🖥️ FRONTEND
+  #  FRONTEND
   frontend:
     build: ./frontend
     container_name: frontend

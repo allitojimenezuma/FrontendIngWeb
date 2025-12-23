@@ -9,6 +9,7 @@ SERVICES = {
     "calendar": os.getenv("CALENDAR_SERVICE_URL", "http://calendar_service:8000"),
     "event": os.getenv("EVENT_SERVICE_URL", "http://event_service:8000"),
     "comment": os.getenv("COMMENT_SERVICE_URL", "http://comment_service:8000"),
+    "external": os.getenv("EXTERNAL_SERVICE_URL", "http://external_service:8000"),
 }
 
 # --- Lógica de Proxy Reutilizable ---
@@ -70,3 +71,7 @@ async def event_proxy(path: str, request: Request):
 @app.delete("/comment/{path:path}", tags=["Comment Service"])
 async def comment_proxy(path: str, request: Request):
     return await _proxy_request("comment", path, request)
+
+@app.post("/external/{path:path}", tags=["External Import"])
+async def external_proxy(path: str, request: Request):
+    return await _proxy_request("external", path, request)
