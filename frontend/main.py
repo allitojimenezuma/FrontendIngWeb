@@ -3,8 +3,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
-from google.oauth2 import id_token
-from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token # type: ignore
+from google.auth.transport import requests as google_requests # type: ignore
 import httpx
 import os
 from typing import Optional, List
@@ -189,6 +189,7 @@ async def process_import_calendar(
     url_ical: str = Form(..., alias="url"),
     titulo: str = Form(...)
 ):
+    """Procesa la importación llamando al Gateway -> External Service."""
     user = get_current_user(request)
     if not user:
         return RedirectResponse("/login", status_code=303)
@@ -199,7 +200,7 @@ async def process_import_calendar(
         "organizador": user.get("name", "Usuario Importador")
     }
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=60.0) as client:
         try:
             response = await client.post(f"{GATEWAY_URL}/external/import/ical", json=data)
             
@@ -216,13 +217,16 @@ async def process_import_calendar(
                     url=f"/calendar/import?msg=Error: {error_detail}&cat=danger", 
                     status_code=303
                 )
+        except httpx.ReadTimeout: 
+            return RedirectResponse(
+                url=f"/calendar/import?msg=El servidor está tardando demasiado. El calendario se creará en segundo plano.&cat=warning", 
+                status_code=303
+            )
         except httpx.RequestError:
             return RedirectResponse(
                 url=f"/calendar/import?msg=Error de conexión con el servicio de importación&cat=danger", 
                 status_code=303
             )
-
-# ...existing code...
 
 # 3. DETALLE DE CALENDARIO
 @app.get("/calendar/{id}", response_class=HTMLResponse)
