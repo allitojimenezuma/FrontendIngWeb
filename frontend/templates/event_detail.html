@@ -109,6 +109,7 @@
                 <p class="text-muted">No hay comentarios aún. ¡Sé el primero!</p>
                 {% endif %}
 
+                {% if user %}
                 <!-- FORMULARIO CON FEEDBACK VISUAL -->
                 <form id="comment-form" action="{{ url_for('add_comment', id=event._id) }}" method="POST" class="mt-4">
                     
@@ -132,12 +133,49 @@
                         Publicar Comentario
                     </button>
                 </form>
+                {% else %}
+                <div class="alert alert-secondary mt-4">
+                    <a href="/login">Inicia sesión</a> para dejar un comentario.
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
 
     <div class="col-md-4">
-        <!-- Sidebar content -->
+        <!-- Sidebar con acciones -->
+        <div class="card">
+            <div class="card-header bg-light">
+                <h6 class="mb-0">Acciones</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('calendar_detail', id=event.idCalendario) }}" class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-left"></i> Volver al Calendario
+                    </a>
+                    
+                    {% if can_edit %}
+                    <hr>
+                    <form action="{{ url_for('delete_event', id=event._id) }}" method="POST"
+                        onsubmit="return confirm('¿Estás seguro de eliminar este evento?');">
+                        <button type="submit" class="btn btn-outline-danger w-100">
+                            <i class="bi bi-trash"></i> Eliminar Evento
+                        </button>
+                    </form>
+                    {% if is_admin %}
+                    <small class="text-muted text-center">
+                        <i class="bi bi-shield-lock"></i> Permisos de administrador
+                    </small>
+                    {% endif %}
+                    {% elif user %}
+                    <hr>
+                    <div class="alert alert-secondary py-2 mb-0">
+                        <small><i class="bi bi-lock"></i> Solo el organizador puede eliminar este evento</small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -146,14 +184,18 @@
 {% if event.contenidoAdjunto and event.contenidoAdjunto.mapa %}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    var map = L.map('map').setView([{{ event.contenidoAdjunto.mapa.latitud }}, {{ event.contenidoAdjunto.mapa.longitud }}], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
-        maxZoom: 19
-    }).addTo(map);
-    L.marker([{{ event.contenidoAdjunto.mapa.latitud }}, {{ event.contenidoAdjunto.mapa.longitud }}]).addTo(map)
-        .bindPopup('<strong>{{ event.lugar }}</strong>')
-        .openPopup();
+    document.addEventListener('DOMContentLoaded', function() {
+        var lat = parseFloat("{{ event.contenidoAdjunto.mapa.latitud }}");
+        var lng = parseFloat("{{ event.contenidoAdjunto.mapa.longitud }}");
+        var map = L.map('map').setView([lat, lng], 15);
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+        L.marker([lat, lng]).addTo(map)
+            .bindPopup('<strong>{{ event.lugar }}</strong>')
+            .openPopup();
+    });
 </script>
 {% endif %}
 
@@ -161,7 +203,7 @@
     document.addEventListener('DOMContentLoaded', function() {
         const commentForm = document.getElementById('comment-form');
         const notificationAlert = document.getElementById('notification-alert');
-        const alertText = notificationAlert.querySelector('div:last-child');
+        const alertText = notificationAlert ? notificationAlert.querySelector('div:last-child') : null;
         const submitBtn = document.getElementById('submit-btn');
         const hiddenInput = document.getElementById('hidden-notif-pref');
 
@@ -171,20 +213,24 @@
                 const preferencia = localStorage.getItem('kalendas_notif_pref') || 'email';
                 
                 // 2. IMPORTANTE: Meter la preferencia en el input oculto para enviarla al servidor
-                hiddenInput.value = preferencia;
+                if (hiddenInput) hiddenInput.value = preferencia;
 
                 // 3. Feedback Visual
-                if (preferencia === 'app') {
-                    alertText.textContent = "Guardando comentario y generando alerta interna...";
-                    localStorage.setItem('kalendas_new_notification', 'true');
-                } else {
-                    alertText.textContent = "Enviando comentario y correo al organizador...";
-                }
+                if (notificationAlert && alertText) {
+                    if (preferencia === 'app') {
+                        alertText.textContent = "Guardando comentario y generando alerta interna...";
+                        localStorage.setItem('kalendas_new_notification', 'true');
+                    } else {
+                        alertText.textContent = "Enviando comentario y correo al organizador...";
+                    }
 
-                notificationAlert.classList.remove('d-none');
-                notificationAlert.classList.add('d-flex');
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = 'Enviando...';
+                    notificationAlert.classList.remove('d-none');
+                    notificationAlert.classList.add('d-flex');
+                }
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = 'Enviando...';
+                }
             });
         }
     });

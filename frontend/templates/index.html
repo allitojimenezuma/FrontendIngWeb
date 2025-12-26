@@ -5,26 +5,56 @@
 {% block content %}
 <div class="row mb-4">
     <div class="col-md-8">
-        <h1 class="display-5">Calendarios Públicos</h1>
-        <p class="lead">Explora los eventos y actividades disponibles.</p>
+        <h1 class="display-5">
+            {% if admin_view %}
+            <i class="bi bi-shield-lock text-danger"></i> Panel de Administración
+            {% else %}
+            Calendarios Públicos
+            {% endif %}
+        </h1>
+        <p class="lead">
+            {% if admin_view %}
+            Vista de administrador: puedes ver y gestionar TODOS los calendarios.
+            {% else %}
+            Explora los eventos y actividades disponibles.
+            {% endif %}
+        </p>
     </div>
     <div class="col-md-4 text-end align-self-center">
+        {% if user %}
         <a href="{{ url_for('import_calendar_form') }}" class="btn btn-outline-success me-2">
             <i class="bi bi-cloud-arrow-down"></i> Importar
         </a>
-
         <a href="{{ url_for('create_calendar_form') }}" class="btn btn-primary">
             <i class="bi bi-plus-circle"></i> Crear Calendario
         </a>
+        {% else %}
+        <a href="/login" class="btn btn-outline-primary">
+            <i class="bi bi-google"></i> Iniciar sesión para crear
+        </a>
+        {% endif %}
     </div>
 </div>
+
+{% if is_admin and not admin_view %}
+<div class="alert alert-info mb-4">
+    <i class="bi bi-info-circle"></i> Eres administrador. 
+    <a href="{{ url_for('admin_calendars') }}" class="alert-link">Ir al Panel de Administración</a> 
+    para ver todos los calendarios (públicos y privados).
+</div>
+{% endif %}
 
 <div class="row row-cols-1 row-cols-md-3 g-4">
     {% for calendar in calendars %}
     <div class="col">
         <div class="card h-100">
             <div class="card-body">
-                <h5 class="card-title">{{ calendar.titulo }}</h5>
+                <h5 class="card-title">
+                    {{ calendar.titulo }}
+                    {% if not calendar.es_publico %}
+                    <span class="badge bg-warning text-dark">Privado</span>
+                    {% endif %}
+                </h5>
                 <h6 class="card-subtitle mb-2 text-muted">
                     <i class="bi bi-person"></i> {{ calendar.organizador }}
                 </h6>

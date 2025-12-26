@@ -40,15 +40,33 @@
                 </p>
 
                 <div class="d-grid gap-2">
+                    {% if user %}
                     <a href="{{ url_for('create_event_form', calendar_id=calendar._id) }}" class="btn btn-primary">
                         <i class="bi bi-calendar-plus"></i> Añadir Evento
                     </a>
+                    {% endif %}
+                    
+                    {% if can_edit %}
                     <form action="{{ url_for('delete_calendar', id=calendar._id) }}" method="POST"
                         onsubmit="return confirm('¿Estás seguro de eliminar este calendario?');">
                         <button type="submit" class="btn btn-outline-danger w-100">
                             <i class="bi bi-trash"></i> Eliminar Calendario
                         </button>
                     </form>
+                    {% if is_admin %}
+                    <small class="text-muted text-center">
+                        <i class="bi bi-shield-lock"></i> Permisos de administrador
+                    </small>
+                    {% endif %}
+                    {% elif user %}
+                    <div class="alert alert-secondary py-2 mb-0">
+                        <small><i class="bi bi-lock"></i> Solo el organizador puede eliminar este calendario</small>
+                    </div>
+                    {% else %}
+                    <a href="/login" class="btn btn-outline-secondary">
+                        <i class="bi bi-box-arrow-in-right"></i> Iniciar sesión
+                    </a>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -95,6 +113,11 @@
         <div class="alert alert-light border text-center py-5">
             <i class="bi bi-calendar-x display-4 text-muted"></i>
             <p class="mt-3 text-muted">No hay eventos programados en este calendario.</p>
+            {% if user %}
+            <a href="{{ url_for('create_event_form', calendar_id=calendar._id) }}" class="btn btn-primary">
+                <i class="bi bi-plus"></i> Crear el primer evento
+            </a>
+            {% endif %}
         </div>
         {% endif %}
     </div>
