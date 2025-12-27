@@ -51,7 +51,8 @@ Dentro del archivo `.env`, añade la URI de conexión a MongoDB que se comparti�
 # Contenido para el archivo .env
 MONGODB_URI="mongodb+srv://<usuario>:<password>@<cluster>..."
 # Envio de emails 
-SENDGRID_API_KEY="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"
+// enviada por whatsapp
+SENDGRID_API_KEY="contraseña"
 EMAIL_REMITENTE="gbcarlos1863@gmail.com"
 ```
 
