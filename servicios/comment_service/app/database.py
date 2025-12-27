@@ -1,13 +1,14 @@
-from pymongo.mongo_client import MongoClient
-from pymongo.server_api import ServerApi
-from datetime import datetime
-from dotenv import load_dotenv
 import os
-
+from pymongo import MongoClient
+from dotenv import load_dotenv
 
 load_dotenv()
 
-uri = os.getenv('MONGODB_URI')
-client = MongoClient(uri, server_api=ServerApi('1'), uuidRepresentation='standard')
+# Recuperamos la URI del entorno
+MONGO_URI = os.getenv("MONGODB_URI")
+
+# Conectamos a Mongo con soporte para UUID estándar
+client = MongoClient(MONGO_URI, uuidRepresentation='standard')
+
+# Exportamos el objeto de base de datos completo 'db'
 db = client['KalendasDB']
-comentarios_collection = db['comentarios']

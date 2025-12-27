@@ -9,6 +9,7 @@ import httpx
 import os
 from typing import Optional, List
 from dotenv import load_dotenv
+import unicodedata
 
 # Cargar variables de entorno
 load_dotenv()
@@ -74,8 +75,15 @@ async def login_page(request: Request):
 @app.post("/auth/google")
 async def auth_google(request: Request, token: str = Form(...)):
     try:
-        # Verificar el token con Google
-        idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), GOOGLE_CLIENT_ID)
+        # --- CORRECCIÓN AQUÍ: Añadimos clock_skew_in_seconds=10 ---
+        # Esto le dice a la librería: "Si la hora varía por menos de 10 segundos, acéptalo".
+        # Soluciona el error "Token used too early" típico de Docker en Mac/Windows.
+        idinfo = id_token.verify_oauth2_token(
+            token, 
+            google_requests.Request(), 
+            GOOGLE_CLIENT_ID,
+            clock_skew_in_seconds=10 
+        )
         
         email = idinfo.get("email")
         
@@ -87,11 +95,12 @@ async def auth_google(request: Request, token: str = Form(...)):
             "name": idinfo.get("name"),
             "email": email,
             "picture": idinfo.get("picture"),
-            "role": role  # Nuevo campo: rol del usuario
+            "role": role 
         }
         
         return RedirectResponse(url="/?msg=Sesión iniciada correctamente&cat=success", status_code=303)
-    except ValueError:
+    except ValueError as e:
+        print(f"❌ Error Login (Detalle): {e}") # Debug para ver si sigue fallando
         return RedirectResponse(url="/login?msg=Token inválido&cat=danger", status_code=303)
 
 @app.get("/logout")
@@ -449,35 +458,51 @@ async def delete_event(id: str, request: Request):
         except httpx.RequestError:
             return RedirectResponse(url=f"/event/{id}?msg=Error de conexión&cat=danger", status_code=303)
 
+
 @app.post("/event/{id}/comment")
 async def add_comment(
     id: str, 
     request: Request,
     contenido: str = Form(...),
-    notif_pref: str = Form("email")
+    notif_pref: str = Form("email") # Recibimos esto pero ya no lo usamos para lógica, lo gestiona el backend
 ):
+    # 1. Obtenemos el usuario de la sesión
+    user = get_current_user(request)
+    
+    # Preparamos los datos del comentario
     data = {
         "contenido": contenido,
         "idEvento": id,
         "idCalendario": None
     }
-    enviar_email = (notif_pref != "app")
+    
+    # 2. Preparamos las cabeceras
+    # Si hay usuario logueado, mandamos su nombre. Si no, no mandamos nada (backend pondrá Anónimo)
+    headers = {}
+    if user and "name" in user:
+        # Limpiamos el nombre: "Gálvez" se convierte en "Galvez" para evitar error 500
+        nombre_limpio = ''.join(
+            c for c in unicodedata.normalize('NFD', user["name"])
+            if unicodedata.category(c) != 'Mn'
+        )
+        headers["X-User-Name"] = nombre_limpio
 
     async with httpx.AsyncClient() as client:
         try:
+            # 3. Enviamos la petición AL GATEWAY con los headers correctos
+            # Nota: Ya no enviamos el query param 'enviar_email' porque el servicio lo calcula solo
             response = await client.post(
                 f"{GATEWAY_URL}/comment/comments/", 
                 json=data,
-                params={"enviar_email": enviar_email} 
+                headers=headers 
             )
             
             if response.status_code == 201:
                 return RedirectResponse(url=f"/event/{id}?msg=Comentario añadido&cat=success", status_code=303)
             else:
-                return RedirectResponse(url=f"/event/{id}?msg=Error al comentar&cat=danger", status_code=303)
+                return RedirectResponse(url=f"/event/{id}?msg=Error al comentar: {response.text}&cat=danger", status_code=303)
         except httpx.RequestError:
             return RedirectResponse(url=f"/event/{id}?msg=Error de conexión&cat=danger", status_code=303)
-
 
 # --- RUTAS DE ADMINISTRACIÓN (SOLO ADMIN) ---
 
@@ -536,22 +561,83 @@ async def search_page(request: Request, q: Optional[str] = None):
         "is_admin": is_admin(request)
     })
 
-@app.get("/settings-mock", response_class=HTMLResponse)
+@app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request):
-    if not get_current_user(request):
+    user = get_current_user(request)
+    if not user:
         return RedirectResponse("/login", status_code=303)
+    
+    current_pref = "email" # Valor por defecto
+    
+    # Consultamos al backend qué tiene el usuario configurado
+    async with httpx.AsyncClient() as client:
+        try:
+            # OJO: La URL debe coincidir con tu Router (/comments/preferences/...)
+            # Si tu Gateway redirige /comment a /comments del servicio:
+            res = await client.get(f"{GATEWAY_URL}/comment/comments/preferences/{user['email']}")
+            
+            # NOTA: Ajusta la URL según cómo tengas el Gateway. 
+            # Si en gateway es /comment -> servicio /comments, entonces la url es correcta.
+            
+            if res.status_code == 200:
+                current_pref = res.json().get("preference", "email")
+        except httpx.RequestError:
+            print("⚠️ Backend no disponible para preferencias")
+
     return templates.TemplateResponse("settings.html", {
         "request": request,
-        "user": get_current_user(request),
+        "user": user,
+        "current_pref": current_pref, # Pasamos la preferencia al HTML
         "is_admin": is_admin(request)
     })
 
-@app.get("/notifications-mock", response_class=HTMLResponse)
-async def notifications_page(request: Request):
-    if not get_current_user(request):
+@app.post("/settings")
+async def update_settings(request: Request, notif_option: str = Form(...)):
+    user = get_current_user(request)
+    if not user:
         return RedirectResponse("/login", status_code=303)
+
+    async with httpx.AsyncClient() as client:
+        try:
+            payload = {"email": user["email"], "preference": notif_option}
+            
+            # Enviamos la nueva preferencia al backend
+            await client.post(
+                f"{GATEWAY_URL}/comment/comments/preferences", 
+                json=payload
+            )
+            
+            return RedirectResponse("/settings?msg=Preferencias guardadas&cat=success", status_code=303)
+        except httpx.RequestError:
+            return RedirectResponse("/settings?msg=Error de conexión&cat=danger", status_code=303)
+        
+
+
+@app.get("/notifications", response_class=HTMLResponse)
+async def notifications_page(request: Request):
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+
+    notificaciones = []
+    
+    # Llamamos al Backend para pedir la lista real de Mongo
+    async with httpx.AsyncClient() as client:
+        try:
+            # Petición al Gateway -> Servicio Comentarios -> Mis Notificaciones
+            response = await client.get(
+                f"{GATEWAY_URL}/comment/comments/notifications", 
+                params={"email": user["email"]}
+            )
+            if response.status_code == 200:
+                notificaciones = response.json()
+        except httpx.RequestError:
+            print("⚠️ Error conectando con el servicio de notificaciones")
+
+    # Renderizamos la plantilla con los datos reales
     return templates.TemplateResponse("notifications.html", {
         "request": request,
-        "user": get_current_user(request),
+        "user": user,
+        "notificaciones": notificaciones, 
         "is_admin": is_admin(request)
     })

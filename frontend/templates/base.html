@@ -74,7 +74,7 @@
 
                     {% if user %}
                         <li class="nav-item ms-2">
-                            <a class="nav-link position-relative" href="/notifications-mock" title="Notificaciones">
+                            <a class="nav-link position-relative" href="/notifications" title="Notificaciones">
                                 <i class="bi bi-bell" style="font-size: 1.2rem;"></i>
                                 <span class="position-absolute top-10 start-100 translate-middle p-1 bg-danger border border-light rounded-circle">
                                     <span class="visually-hidden">Nuevas alertas</span>
@@ -96,7 +96,7 @@
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
                                 <li><a class="dropdown-item" href="#">Mi Perfil</a></li>
-                                <li><a class="dropdown-item" href="/settings-mock">Configuración</a></li>
+                                <li><a class="dropdown-item" href="/settings">Configuración</a></li>
                                 {% if is_admin %}
                                 <li><a class="dropdown-item text-danger" href="{{ url_for('admin_calendars') }}">
                                     <i class="bi bi-shield-lock"></i> Panel Admin

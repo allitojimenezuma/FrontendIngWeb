@@ -12,20 +12,22 @@
             <div class="card-body">
                 <p class="text-muted">Elige cómo quieres enterarte cuando alguien comente en tus eventos.</p>
                 
-                <form id="settings-form"> 
+                <form action="/settings" method="post"> 
                     <div class="list-group mb-4">
-                        <!-- Opción 1: Email -->
                         <label class="list-group-item d-flex gap-3">
-                            <input class="form-check-input flex-shrink-0" type="radio" name="notif_pref" id="notif_email" value="email" checked>
+                            <input class="form-check-input flex-shrink-0" type="radio" 
+                                   name="notif_option" value="email" 
+                                   {% if current_pref == 'email' or not current_pref %}checked{% endif %}>
                             <span>
                                 <strong>Por Correo Electrónico</strong>
                                 <small class="d-block text-muted">Te enviaremos un email instantáneo a tu dirección registrada.</small>
                             </span>
                         </label>
                         
-                        <!-- Opción 2: App -->
                         <label class="list-group-item d-flex gap-3">
-                            <input class="form-check-input flex-shrink-0" type="radio" name="notif_pref" id="notif_app" value="app">
+                            <input class="form-check-input flex-shrink-0" type="radio" 
+                                   name="notif_option" value="app"
+                                   {% if current_pref == 'app' %}checked{% endif %}>
                             <span>
                                 <strong>Al iniciar sesión (En la App)</strong>
                                 <small class="d-block text-muted">Verás una alerta en la campana de notificaciones la próxima vez que entres.</small>
@@ -34,7 +36,7 @@
                     </div>
 
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                        <button type="button" class="btn btn-primary" onclick="guardarPreferencias()">
+                        <button type="submit" class="btn btn-primary">
                             Guardar Cambios
                         </button>
                     </div>
@@ -46,22 +48,4 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-    function guardarPreferencias() {
-        // Simulación: Guardamos la preferencia en el navegador
-        const pref = document.querySelector('input[name="notif_pref"]:checked').value;
-        localStorage.setItem('kalendas_notif_pref', pref);
-        
-        alert('✅ Preferencias guardadas correctamente.\nModo seleccionado: ' + (pref === 'email' ? 'Email' : 'App'));
-    }
-
-    // Cargar preferencia guardada al abrir
-    document.addEventListener('DOMContentLoaded', () => {
-        const saved = localStorage.getItem('kalendas_notif_pref');
-        if (saved) {
-            const radio = document.querySelector(`input[value="${saved}"]`);
-            if(radio) radio.checked = true;
-        }
-    });
-</script>
 {% endblock %}

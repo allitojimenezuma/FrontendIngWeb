@@ -21,6 +21,7 @@ try:
     db.drop_collection('calendarios')
     db.drop_collection('eventos')
     db.drop_collection('comentarios')
+    db.drop_collection('notificaciones')
     print("🧹 Colecciones 'calendarios', 'eventos' y 'comentarios' eliminadas.")
 
     # Obtenemos las colecciones (se crearán automáticamente al insertar datos)
@@ -78,6 +79,7 @@ try:
             "duracionMinutos": 240,
             "lugar": "Salida desde el Estadio Municipal",
             "organizador": "Concejalía de Deportes",
+            "emailOrganizador": "gbcarlos1863@gmail.com",
             "contenidoAdjunto": {
                 "imagenes": [], "archivos": [], "mapa": {"latitud": 36.7213, "longitud": -4.4214}
             }
@@ -90,6 +92,7 @@ try:
             "duracionMinutos": 360,
             "lugar": "Varios lugares en el centro",
             "organizador": "Ayuntamiento Central",
+            "emailOrganizador": "gbcarlos1863@gmail.com",
             "contenidoAdjunto": {"imagenes": ["https://ejemplo.com/noche_en_blanco.jpg"], "archivos": [], "mapa": None}
         }
     ])
