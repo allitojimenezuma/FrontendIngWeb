@@ -22,7 +22,7 @@ logger.info(f"🚀 Gateway iniciado con servicios: {SERVICES}")
 
 # --- Lógica de Proxy Reutilizable ---
 async def _proxy_request(service: str, path: str, request: Request):
-    https://kalendas-calendar-nl56.onrender.com/calendars/    """Función genérica para reenviar una petición a un microservicio."""
+    """Función genérica para reenviar una petición a un microservicio."""
     if service not in SERVICES:
         raise HTTPException(status_code=404, detail=f"Servicio '{service}' no encontrado")
 
