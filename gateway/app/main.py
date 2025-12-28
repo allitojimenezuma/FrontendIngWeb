@@ -22,7 +22,7 @@ logger.info(f"🚀 Gateway iniciado con servicios: {SERVICES}")
 
 # --- Lógica de Proxy Reutilizable ---
 async def _proxy_request(service: str, path: str, request: Request):
-    """Función genérica para reenviar una petición a un microservicio."""
+    https://kalendas-calendar-nl56.onrender.com/calendars/    """Función genérica para reenviar una petición a un microservicio."""
     if service not in SERVICES:
         raise HTTPException(status_code=404, detail=f"Servicio '{service}' no encontrado")
 
@@ -44,13 +44,20 @@ async def _proxy_request(service: str, path: str, request: Request):
     
     logger.info(f"🔄 Proxy request: {request.method} {target_url}")
     
+    # Filtrar headers problemáticos que no deben reenviarse
+    headers_to_exclude = {"host", "content-length", "transfer-encoding", "connection"}
+    filtered_headers = {
+        key: value for key, value in request.headers.items()
+        if key.lower() not in headers_to_exclude
+    }
+    
     # Cliente sin base_url, usar URLs completas
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
             response = await client.request(
                 method=request.method,
                 url=target_url,
-                headers=dict(request.headers),
+                headers=filtered_headers,
                 params=request.query_params,
                 content=body,
                 follow_redirects=True,
