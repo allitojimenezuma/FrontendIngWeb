@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, Form, HTTPException, Depends, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -10,6 +10,8 @@ import os
 from typing import Optional, List
 from dotenv import load_dotenv
 import unicodedata
+import jwt
+from datetime import datetime, timedelta
 
 # Cargar variables de entorno
 load_dotenv()
@@ -23,6 +25,11 @@ app.add_middleware(SessionMiddleware, secret_key="clave_super_secreta_kalendas")
 
 # Client ID de Google
 GOOGLE_CLIENT_ID = "853773773260-c4a0jh7ii2bbql2cbb7mseb421vnor94.apps.googleusercontent.com"
+
+# Clave secreta para firmar tokens JWT
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "clave_super_secreta_jwt_kalendas_2024")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRATION_HOURS = 24
 
 # Lista de emails de administradores
 ADMIN_EMAILS = [
@@ -39,6 +46,30 @@ templates = Jinja2Templates(directory="templates")
 GATEWAY_URL = os.getenv('GATEWAY_URL', 'http://gateway:8000')
 
 # --- HELPERS ---
+
+def get_frontend_headers() -> dict:
+    """
+    Retorna headers especiales que identifican peticiones del frontend.
+    Esto permite al gateway distinguir entre:
+    - Peticiones del frontend web (autenticado con cookies)
+    - Peticiones directas a la API REST (requieren JWT)
+    """
+    return {
+        "X-Frontend-Request": "true",
+        "X-Service-Name": "kalendas-frontend"
+    }
+
+def create_jwt_token(user_data: dict) -> str:
+    """Crea un token JWT con los datos del usuario."""
+    payload = {
+        "email": user_data.get("email"),
+        "name": user_data.get("name"),
+        "role": user_data.get("role"),
+        "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRATION_HOURS),
+        "iat": datetime.utcnow()
+    }
+    token = jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+    return token
 
 def get_messages(request: Request):
     """Recupera mensajes flash de la URL para mostrar alertas."""
@@ -91,12 +122,17 @@ async def auth_google(request: Request, token: str = Form(...)):
         role = "admin" if email in ADMIN_EMAILS else "user"
         
         # Guardar datos del usuario en la sesión
-        request.session["user"] = {
+        user_data = {
             "name": idinfo.get("name"),
             "email": email,
             "picture": idinfo.get("picture"),
             "role": role 
         }
+        request.session["user"] = user_data
+        
+        # Generar y guardar el token JWT en la sesión
+        jwt_token = create_jwt_token(user_data)
+        request.session["jwt_token"] = jwt_token
         
         return RedirectResponse(url="/?msg=Sesión iniciada correctamente&cat=success", status_code=303)
     except ValueError as e:
@@ -115,7 +151,10 @@ async def logout(request: Request):
 async def index(request: Request):
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.get(f"{GATEWAY_URL}/calendar/calendars/")
+            response = await client.get(
+                f"{GATEWAY_URL}/calendar/calendars/",
+                headers=get_frontend_headers()
+            )
             calendars = response.json() if response.status_code == 200 else []
         except httpx.RequestError:
             calendars = []
@@ -168,7 +207,11 @@ async def create_calendar(
     
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.post(f"{GATEWAY_URL}/calendar/calendars/", json=data)
+            response = await client.post(
+                f"{GATEWAY_URL}/calendar/calendars/",
+                json=data,
+                headers=get_frontend_headers()
+            )
             if response.status_code == 201:
                 return RedirectResponse(url="/?msg=Calendario creado&cat=success", status_code=303)
             else:
@@ -211,7 +254,11 @@ async def process_import_calendar(
     
     async with httpx.AsyncClient(timeout=60.0) as client:
         try:
-            response = await client.post(f"{GATEWAY_URL}/external/import/ical", json=data)
+            response = await client.post(
+                f"{GATEWAY_URL}/external/import/ical",
+                json=data,
+                headers=get_frontend_headers()
+            )
             
             if response.status_code == 200:
                 result = response.json()
@@ -248,7 +295,10 @@ async def calendar_detail(id: str, request: Request):
     
     async with httpx.AsyncClient() as client:
         try:
-            cal_res = await client.get(f"{GATEWAY_URL}/calendar/calendars/{id}")
+            cal_res = await client.get(
+                f"{GATEWAY_URL}/calendar/calendars/{id}",
+                headers=get_frontend_headers()
+            )
             if cal_res.status_code != 200:
                 return RedirectResponse(url="/?msg=Calendario no encontrado&cat=danger", status_code=303)
             calendar = cal_res.json()
@@ -261,10 +311,16 @@ async def calendar_detail(id: str, request: Request):
                 if not user:
                     return RedirectResponse(url="/login?msg=Este calendario es privado&cat=warning", status_code=303)
             
-            events_res = await client.get(f"{GATEWAY_URL}/event/events/calendar/{id}")
+            events_res = await client.get(
+                f"{GATEWAY_URL}/event/events/calendar/{id}",
+                headers=get_frontend_headers()
+            )
             events = events_res.json() if events_res.status_code == 200 else []
             
-            sub_res = await client.get(f"{GATEWAY_URL}/calendar/calendars/{id}/subcalendars")
+            sub_res = await client.get(
+                f"{GATEWAY_URL}/calendar/calendars/{id}/subcalendars",
+                headers=get_frontend_headers()
+            )
             subcalendars = sub_res.json() if sub_res.status_code == 200 else []
             
             # Determinar si puede editar (es el organizador O es admin)
@@ -302,7 +358,10 @@ async def delete_calendar(id: str, request: Request):
     # Verificar permisos: solo el propietario o admin puede eliminar
     async with httpx.AsyncClient() as client:
         try:
-            cal_res = await client.get(f"{GATEWAY_URL}/calendar/calendars/{id}")
+            cal_res = await client.get(
+                f"{GATEWAY_URL}/calendar/calendars/{id}",
+                headers=get_frontend_headers()
+            )
             if cal_res.status_code == 200:
                 calendar = cal_res.json()
                 is_owner = calendar.get("organizador") == user.get("name")
@@ -313,7 +372,10 @@ async def delete_calendar(id: str, request: Request):
                         status_code=303
                     )
             
-            response = await client.delete(f"{GATEWAY_URL}/calendar/calendars/{id}")
+            response = await client.delete(
+                f"{GATEWAY_URL}/calendar/calendars/{id}",
+                headers=get_frontend_headers()
+            )
             if response.status_code == 204:
                 return RedirectResponse(url="/?msg=Calendario eliminado&cat=success", status_code=303)
             else:
@@ -383,7 +445,8 @@ async def create_event(
             response = await client.post(
                 f"{GATEWAY_URL}/event/events/",
                 data=data,
-                files=files if files else None
+                files=files if files else None,
+                headers=get_frontend_headers()
             )
             
             if response.status_code == 201:
@@ -399,12 +462,19 @@ async def event_detail(id: str, request: Request):
     
     async with httpx.AsyncClient() as client:
         try:
-            event_res = await client.get(f"{GATEWAY_URL}/event/events/{id}")
+            event_res = await client.get(
+                f"{GATEWAY_URL}/event/events/{id}",
+                headers=get_frontend_headers()
+            )
             if event_res.status_code != 200:
                 return RedirectResponse(url="/?msg=Evento no encontrado&cat=danger", status_code=303)
             event = event_res.json()
             
-            comments_res = await client.get(f"{GATEWAY_URL}/comment/comments/", params={"idEvento": id})
+            comments_res = await client.get(
+                f"{GATEWAY_URL}/comment/comments/",
+                params={"idEvento": id},
+                headers=get_frontend_headers()
+            )
             comments = comments_res.json() if comments_res.status_code == 200 else []
             
             # Determinar si puede editar (es el organizador O es admin)
@@ -435,7 +505,10 @@ async def delete_event(id: str, request: Request):
     async with httpx.AsyncClient() as client:
         try:
             # Primero obtener el evento para verificar permisos
-            event_res = await client.get(f"{GATEWAY_URL}/event/events/{id}")
+            event_res = await client.get(
+                f"{GATEWAY_URL}/event/events/{id}",
+                headers=get_frontend_headers()
+            )
             if event_res.status_code == 200:
                 event = event_res.json()
                 is_owner = event.get("organizador") == user.get("name")
@@ -448,7 +521,10 @@ async def delete_event(id: str, request: Request):
                     )
                 
                 # Eliminar el evento
-                response = await client.delete(f"{GATEWAY_URL}/event/events/{id}")
+                response = await client.delete(
+                    f"{GATEWAY_URL}/event/events/{id}",
+                    headers=get_frontend_headers()
+                )
                 if response.status_code == 204:
                     return RedirectResponse(url=f"/calendar/{calendar_id}?msg=Evento eliminado&cat=success", status_code=303)
                 else:
@@ -491,10 +567,14 @@ async def add_comment(
         try:
             # 3. Enviamos la petición AL GATEWAY con los headers correctos
             # Nota: Ya no enviamos el query param 'enviar_email' porque el servicio lo calcula solo
+            frontend_headers = get_frontend_headers()
+            if headers:
+                frontend_headers.update(headers)
+            
             response = await client.post(
                 f"{GATEWAY_URL}/comment/comments/", 
                 json=data,
-                headers=headers 
+                headers=frontend_headers
             )
             
             if response.status_code == 201:
@@ -519,7 +599,10 @@ async def admin_calendars(request: Request):
     async with httpx.AsyncClient() as client:
         try:
             # Obtener TODOS los calendarios (públicos y privados)
-            response = await client.get(f"{GATEWAY_URL}/calendar/calendars/")
+            response = await client.get(
+                f"{GATEWAY_URL}/calendar/calendars/",
+                headers=get_frontend_headers()
+            )
             calendars = response.json() if response.status_code == 200 else []
         except httpx.RequestError:
             calendars = []
@@ -542,11 +625,19 @@ async def search_page(request: Request, q: Optional[str] = None):
     if q:
         async with httpx.AsyncClient() as client:
             try:
-                cal_res = await client.get(f"{GATEWAY_URL}/calendar/calendars/", params={'titulo': q})
+                cal_res = await client.get(
+                    f"{GATEWAY_URL}/calendar/calendars/",
+                    params={'titulo': q},
+                    headers=get_frontend_headers()
+                )
                 if cal_res.status_code == 200:
                     results['calendars'] = cal_res.json()
                 
-                event_res = await client.get(f"{GATEWAY_URL}/event/events/", params={'titulo': q})
+                event_res = await client.get(
+                    f"{GATEWAY_URL}/event/events/",
+                    params={'titulo': q},
+                    headers=get_frontend_headers()
+                )
                 if event_res.status_code == 200:
                     results['events'] = event_res.json()
             except httpx.RequestError:
@@ -574,7 +665,10 @@ async def settings_page(request: Request):
         try:
             # OJO: La URL debe coincidir con tu Router (/comments/preferences/...)
             # Si tu Gateway redirige /comment a /comments del servicio:
-            res = await client.get(f"{GATEWAY_URL}/comment/comments/preferences/{user['email']}")
+            res = await client.get(
+                f"{GATEWAY_URL}/comment/comments/preferences/{user['email']}",
+                headers=get_frontend_headers()
+            )
             
             # NOTA: Ajusta la URL según cómo tengas el Gateway. 
             # Si en gateway es /comment -> servicio /comments, entonces la url es correcta.
@@ -603,8 +697,9 @@ async def update_settings(request: Request, notif_option: str = Form(...)):
             
             # Enviamos la nueva preferencia al backend
             await client.post(
-                f"{GATEWAY_URL}/comment/comments/preferences", 
-                json=payload
+                f"{GATEWAY_URL}/comment/comments/preferences",
+                json=payload,
+                headers=get_frontend_headers()
             )
             
             return RedirectResponse("/settings?msg=Preferencias guardadas&cat=success", status_code=303)
@@ -626,8 +721,9 @@ async def notifications_page(request: Request):
         try:
             # Petición al Gateway -> Servicio Comentarios -> Mis Notificaciones
             response = await client.get(
-                f"{GATEWAY_URL}/comment/comments/notifications", 
-                params={"email": user["email"]}
+                f"{GATEWAY_URL}/comment/comments/notifications",
+                params={"email": user["email"]},
+                headers=get_frontend_headers()
             )
             if response.status_code == 200:
                 notificaciones = response.json()
@@ -643,8 +739,29 @@ async def notifications_page(request: Request):
     })
 @app.get("/token", tags=["Auth"])
 async def get_token(request: Request):
-    # Devuelve la sesión actual (simulando token) para pruebas.
+    """
+    Devuelve el token JWT del usuario autenticado.
+    Este token puede usarse en la cabecera Authorization: Bearer <token>
+    para acceder a los métodos protegidos de la API.
+    """
     user = get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="No autenticado")
-    return user
+    
+    # Obtener el token JWT de la sesión
+    jwt_token = request.session.get("jwt_token")
+    
+    if not jwt_token:
+        # Si por alguna razón no existe, generarlo ahora
+        jwt_token = create_jwt_token(user)
+        request.session["jwt_token"] = jwt_token
+    
+    return {
+        "access_token": jwt_token,
+        "token_type": "bearer",
+        "user": {
+            "email": user.get("email"),
+            "name": user.get("name"),
+            "role": user.get("role")
+        }
+    }

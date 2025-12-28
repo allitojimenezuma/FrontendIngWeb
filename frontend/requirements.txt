@@ -7,4 +7,5 @@ python-dotenv==1.0.0
 google-auth
 requests
 itsdangerous
+PyJWT==2.8.0
 
