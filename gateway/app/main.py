@@ -22,13 +22,15 @@ async def _proxy_request(service: str, path: str, request: Request):
     
     body = await request.body()
     
-    # Inicializa el cliente con el base_url del microservicio de destino
-    async with httpx.AsyncClient(base_url=service_base_url) as client:
+    # Construir la URL completa directamente
+    target_url = f"{service_base_url}/{path}"
+    
+    # Cliente sin base_url, usar URLs completas
+    async with httpx.AsyncClient(timeout=30.0) as client:
         try:
-            # Ahora la URL de la petición es relativa al base_url
             response = await client.request(
                 method=request.method,
-                url=f"/{path}",
+                url=target_url,
                 headers=dict(request.headers),
                 params=request.query_params,
                 content=body,
