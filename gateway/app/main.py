@@ -1,6 +1,11 @@
 from fastapi import FastAPI, Request, HTTPException, Response
 import os
 import httpx
+import logging
+
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="API Gateway")
 
@@ -11,6 +16,9 @@ SERVICES = {
     "comment": os.getenv("COMMENT_SERVICE_URL", "http://comment_service:8000"),
     "external": os.getenv("EXTERNAL_SERVICE_URL", "http://external_service:8000"),
 }
+
+# Log de configuración al iniciar
+logger.info(f"🚀 Gateway iniciado con servicios: {SERVICES}")
 
 # --- Lógica de Proxy Reutilizable ---
 async def _proxy_request(service: str, path: str, request: Request):
@@ -24,6 +32,8 @@ async def _proxy_request(service: str, path: str, request: Request):
     
     # Construir la URL completa directamente
     target_url = f"{service_base_url}/{path}"
+    
+    logger.info(f"🔄 Proxy request: {request.method} {target_url}")
     
     # Cliente sin base_url, usar URLs completas
     async with httpx.AsyncClient(timeout=30.0) as client:
