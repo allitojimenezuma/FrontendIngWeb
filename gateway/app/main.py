@@ -30,8 +30,17 @@ async def _proxy_request(service: str, path: str, request: Request):
     
     body = await request.body()
     
-    # Construir la URL completa directamente
-    target_url = f"{service_base_url}/{path}"
+    # Construir la URL completa, preservando la barra final si existe
+    # Usar request.url.path para obtener la ruta original completa
+    original_path = str(request.url.path)
+    # Remover el prefijo del servicio (ej: /calendar/)
+    service_prefix = f"/{service}/"
+    if original_path.startswith(service_prefix):
+        remaining_path = original_path[len(service_prefix):]
+    else:
+        remaining_path = path
+    
+    target_url = f"{service_base_url}/{remaining_path}"
     
     logger.info(f"🔄 Proxy request: {request.method} {target_url}")
     
@@ -61,29 +70,20 @@ def root():
     return {"message": "Bienvenido a la API de Kalendas. Visita /docs para ver la documentación."}
 
 # --- Calendar Service Proxy ---
-@app.get("/calendar/{path:path}", tags=["Calendar Service"])
-@app.post("/calendar/{path:path}", tags=["Calendar Service"])
-@app.put("/calendar/{path:path}", tags=["Calendar Service"])
-@app.delete("/calendar/{path:path}", tags=["Calendar Service"])
+@app.api_route("/calendar/{path:path}", methods=["GET", "POST", "PUT", "DELETE"], tags=["Calendar Service"])
 async def calendar_proxy(path: str, request: Request):
     return await _proxy_request("calendar", path, request)
 
 # --- Event Service Proxy ---
-@app.get("/event/{path:path}", tags=["Event Service"])
-@app.post("/event/{path:path}", tags=["Event Service"])
-@app.put("/event/{path:path}", tags=["Event Service"])
-@app.delete("/event/{path:path}", tags=["Event Service"])
+@app.api_route("/event/{path:path}", methods=["GET", "POST", "PUT", "DELETE"], tags=["Event Service"])
 async def event_proxy(path: str, request: Request):
     return await _proxy_request("event", path, request)
 
 # --- Comment Service Proxy ---
-@app.get("/comment/{path:path}", tags=["Comment Service"])
-@app.post("/comment/{path:path}", tags=["Comment Service"])
-@app.put("/comment/{path:path}", tags=["Comment Service"])
-@app.delete("/comment/{path:path}", tags=["Comment Service"])
+@app.api_route("/comment/{path:path}", methods=["GET", "POST", "PUT", "DELETE"], tags=["Comment Service"])
 async def comment_proxy(path: str, request: Request):
     return await _proxy_request("comment", path, request)
 
-@app.post("/external/{path:path}", tags=["External Import"])
+@app.api_route("/external/{path:path}", methods=["GET", "POST", "PUT", "DELETE"], tags=["External Import"])
 async def external_proxy(path: str, request: Request):
     return await _proxy_request("external", path, request)
