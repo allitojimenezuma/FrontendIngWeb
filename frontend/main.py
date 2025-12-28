@@ -641,3 +641,10 @@ async def notifications_page(request: Request):
         "notificaciones": notificaciones, 
         "is_admin": is_admin(request)
     })
+@app.get("/token", tags=["Auth"])
+async def get_token(request: Request):
+    # Devuelve la sesión actual (simulando token) para pruebas.
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    return user
